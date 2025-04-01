@@ -1,7 +1,16 @@
 import heapq
+from turtle import pos
 import networkx as nx
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
+import time
+import numpy as np
+from ipywidgets import interact, fixed, IntSlider, FloatSlider, Dropdown, Button, VBox, HBox, Output
+import IPython.display as display
+import plotly.graph_objects as go
+import plotly.express as px
+from ipywidgets import interact, FloatSlider, IntSlider
 
 class Entrega:
     def __init__(self, minuto, destino, bonus):
@@ -52,7 +61,7 @@ def criar_grafo(conexoes):
     """
     Cria um grafo direcionado a partir de uma lista de objetos Conexao, incluindo arestas reversas.
     """
-    grafo = nx.Graph()
+    grafo = nx.DiGraph()
 
     # Itera sobre as conexões
     for c in conexoes:
@@ -63,21 +72,26 @@ def criar_grafo(conexoes):
         # Adiciona a aresta original (origem -> destino)
         grafo.add_edge(origem, destino, weight=peso)
 
+        # Adiciona a aresta reversa (destino -> origem) com o mesmo peso
+        grafo.add_edge(destino, origem, weight=peso)
+
     return grafo
 
 def dijkstra_basico(grafo, inicio, entregas):
     """
     Algoritmo básico para o Leilão de Entregas Versão 1.
-    Considera o horário programado para saída.
+    Agora é guloso em relação ao bônus acumulado.
     """
     pq = []  # Fila de prioridade para os caminhos
-    heapq.heappush(pq, (0, 0, inicio, []))  # (tempo_atual, lucro_atual, posição_atual, caminho)
+    heapq.heappush(pq, (0, 0, inicio, []))  # (-bônus_acumulado, tempo_atual, posição_atual, caminho)
 
     melhor_lucro = 0
     melhor_caminho = []
 
     while pq:
-        tempo_atual, lucro_atual, posicao_atual, caminho = heapq.heappop(pq)
+        # Desempilhar o estado atual
+        lucro_neg, tempo_atual, posicao_atual, caminho = heapq.heappop(pq)
+        lucro_atual = -lucro_neg  # Transformar o lucro de volta para positivo
 
         # Atualiza o melhor lucro e caminho se necessário
         if lucro_atual > melhor_lucro:
@@ -118,11 +132,11 @@ def dijkstra_basico(grafo, inicio, entregas):
                     # Novo lucro após fazer esta entrega
                     novo_lucro = lucro_atual + bonus
                     
-                    # Adiciona ao heap com novo tempo, lucro e caminho
+                    # Adiciona ao heap com novo bônus, tempo e caminho
                     novo_caminho = caminho + [(destino, bonus, tempo_final)]
                     
-                    # Ordem: tempo, lucro, posição, caminho
-                    # Ordenar por tempo faz com que o algoritmo seja guloso em relação ao tempo
+                    # Ordem: -bônus, tempo, posição, caminho
+                    # Ordenar por bônus faz com que o algoritmo seja guloso em relação ao bônus
                     heapq.heappush(pq, (-novo_lucro, tempo_final, inicio, novo_caminho))
 
                 except nx.NetworkXNoPath:
@@ -216,15 +230,56 @@ def a_star_otimizado(grafo, entregas, inicio='A'):
     
     return melhor_bonus, melhor_caminho
 
-def plotar_grafico_tempo_lucro(tempos, lucros):
+def visualizar_grafo(grafo, caminho=None, entregas=None):
     """
-    Plota um gráfico do lucro em relação ao tempo de execução.
+    Visualiza o grafo de conexões com opção de destacar um caminho e exibir o bônus em cada nó.
     """
-    plt.plot(tempos, lucros, marker='o')  # Adicionei marcadores para melhor visualização
-    plt.title('Comparação de Lucro e Tempo')
-    plt.xlabel('Tempo de Execução (min)')
-    plt.ylabel('Lucro (Bônus)')
-    plt.grid(True)  # Adiciona uma grade para facilitar a leitura
+    plt.figure(figsize=(10, 8))
+    
+    # Posicionar os nós
+    pos = nx.spring_layout(grafo, seed=42)  # seed para reprodutibilidade
+    
+    # Desenhar nós e arestas
+    nx.draw_networkx_nodes(grafo, pos, node_size=900, node_color='skyblue')
+    
+    # Destacar o nó inicial 'A'
+    nx.draw_networkx_nodes(grafo, pos, nodelist=['A'], node_size=900, node_color='red')
+    
+    # Desenhar todas as arestas
+    nx.draw_networkx_edges(grafo, pos, width=1.0, alpha=0.5)
+    
+    # Desenhar pesos das arestas
+    edge_labels = {(u, v): d['weight'] for u, v, d in grafo.edges(data=True)}
+    nx.draw_networkx_edge_labels(grafo, pos, edge_labels=edge_labels)
+    
+    # Adicionar os bônus como rótulos nos nós (mantendo as letras)
+    if entregas:
+        # Criar um dicionário de rótulos com "letra (bônus)"
+        bonus_labels = {entrega.destino: f"{entrega.destino} ({entrega.bonus})" for entrega in entregas}
+        # Adicionar o nó inicial 'A' com bônus 0 (ou outro valor, se necessário)
+        bonus_labels['A'] = "A (0)"
+        nx.draw_networkx_labels(grafo, pos, labels=bonus_labels, font_color='black', font_size=10)
+    else:
+        # Adicionar rótulos padrão (apenas os nomes dos nós)
+        nx.draw_networkx_labels(grafo, pos)
+    
+    # Se um caminho for fornecido, destacar as arestas do caminho
+    if caminho:
+        # Extrair os nós do caminho
+        nodes_path = ['A']  # Começar do ponto inicial A
+        for destino, _, _ in caminho:
+            # Calcular o caminho mais curto para o destino
+            subcaminho = nx.shortest_path(grafo, source=nodes_path[-1], target=destino, weight='weight')
+            nodes_path.extend(subcaminho[1:])  # Adicionar o subcaminho, ignorando o nó inicial duplicado
+            nodes_path.append('A')  # Retornar para A após cada entrega
+        
+        # Criar as arestas a partir dos nós do caminho
+        path_edges = [(nodes_path[i], nodes_path[i+1]) for i in range(len(nodes_path)-1)]
+        nx.draw_networkx_edges(grafo, pos, edgelist=path_edges, width=3, alpha=0.8, edge_color='red')
+    
+    plt.title('Grafo de Conexões com Bônus nos Nós')
+    plt.axis('off')
+    plt.tight_layout()
     plt.show()
 
 def main():
@@ -235,29 +290,54 @@ def main():
     # Criar o grafo a partir das conexões
     grafo = criar_grafo(conexoes)
 
-    # Rodar simulações
-    # Tem que ajustar para considerar a ida e volta + minutagem de saída do ponto A
-    bonus, caminho = dijkstra_basico(grafo,'A',entregas)
+    # Executar algoritmos e medir tempos
+    start_time = time.perf_counter()
+    bonus_basico, caminho_basico = dijkstra_basico(grafo, 'A', entregas)
+    tempo_basico = (time.perf_counter() - start_time) * 1000
+
+    start_time = time.perf_counter()
+    bonus_otimizado, caminho_otimizado = a_star_otimizado(grafo, entregas)
+    tempo_otimizado = (time.perf_counter() - start_time) * 1000
+
+    # Mostrar resultados no console
     print(f"\n💰 Simulação básica")
-    print(f"\n💰 Bônus total acumulado: {bonus}")
+    # print(f"💰 Bônus total acumulado: {bonus_basico}")
+
+    print(f"⏱️ Tempo de execução: {tempo_basico:.6f} ms")
     print("📦 Melhor sequência de entregas (A -> entrega -> A):")
-    for destino, bonus, tempo in caminho:
-        print(caminho)
+    for destino, bonus, tempo in caminho_basico:
         print(f" - {destino}: bônus {bonus}, entregue até {tempo} minutos")
 
-    bonus, caminho = a_star_otimizado(grafo, entregas)
     print(f"\n💰 Simulação otimizada")
-    print(f"\n💰 Bônus total acumulado: {bonus}")
+    print(f"💰 Bônus total acumulado: {bonus_otimizado}")
+    print(f"⏱️ Tempo de execução: {tempo_otimizado:.6f} ms")
     print("📦 Melhor sequência de entregas (A -> entrega -> A):")
-    for destino, bonus, tempo in caminho:
+    for destino, bonus, tempo in caminho_otimizado:
         print(f" - {destino}: bônus {bonus}, entregue até {tempo} minutos")
 
-    #Exibir gráficos comparando os lucros
-    print("\nGerando gráfico de comparação...")
-    plotar_grafico_tempo_lucro(
-         ['Simulação Básica', 'Simulação Otimizada'],
-         [resultado_basico['lucro_total'], resultado_otimizado['lucro_total']]
-    )
+    # Criar gráficos comparativos
+    plt.figure(figsize=(12, 5))
+    
+    # Gráfico de bônus
+    plt.subplot(1, 2, 1)
+    algoritmos = ['Básico', 'Otimizado']
+    bonus = [bonus_basico, bonus_otimizado]
+    plt.bar(algoritmos, bonus, color=['blue', 'green'])
+    plt.title('Comparação de Bônus')
+    plt.ylabel('Bônus Total')
+    
+    # Gráfico de minutos gastos na entrega
+    plt.subplot(1, 2, 2)
+    minutos_gastos = [sum([tempo for _, _, tempo in caminho_basico]), sum([tempo for _, _, tempo in caminho_otimizado])]
+    plt.bar(algoritmos, minutos_gastos, color=['blue', 'green'])
+    plt.title('Comparação de Minutos Gastos na Entrega')
+    plt.ylabel('Minutos Totais')
+    plt.tight_layout()
+    plt.savefig('comparacao_alg.png')
+    plt.show()
+
+    # Visualizar grafo com o melhor caminho
+    visualizar_grafo(grafo, caminho_otimizado, entregas)
 
 if __name__ == '__main__':
     main()
