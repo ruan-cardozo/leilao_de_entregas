@@ -1,4 +1,7 @@
 # IA e Teoria dos Grafos
+
+Alunos: Guilherme Elias Kopsch, Guilherme Machado, João David, Ruan Diego Velloso Cardozo. 
+
 ## Algoritmos Clássicos de Busca em Grafos
 * Busca em Largura (BFS) – Bom para encontrar o caminho mais curto em grafos não ponderados.
 * Busca em Profundidade (DFS) – Usado para exploração, mas pode ser ineficiente para encontrar caminhos mínimos.
