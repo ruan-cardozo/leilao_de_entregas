@@ -221,9 +221,9 @@ def a_star_otimizado(grafo, entregas, inicio='A'):
             # Considerar apenas entregas que ainda podem ser feitas
             h = sum(b for m, _, b in novas_entregas_restantes if m > tempo_final)
             
-            # Função de avaliação f(n) = -g(n) - h(n)
-            # Como queremos maximizar o bônus, usamos o negativo
-            f = -(novo_bonus + h)
+            # Função de avaliação f(n) = -g(n) + h(n)
+            # Maximizar o bônus (negativo para priorizar maior bônus) e minimizar o tempo
+            f = -(novo_bonus) + tempo_final + h
             
             # Adicionar à fila de prioridade
             heapq.heappush(fila, (f, -novo_bonus, tempo_final, inicio, novas_entregas_feitas, novas_entregas_restantes))
@@ -305,6 +305,7 @@ def main():
 
     print(f"⏱️ Tempo de execução: {tempo_basico:.6f} ms")
     print("📦 Melhor sequência de entregas (A -> entrega -> A):")
+    print("Entrega: ", caminho_basico)
     for destino, bonus, tempo in caminho_basico:
         print(f" - {destino}: bônus {bonus}, entregue até {tempo} minutos")
 
@@ -312,6 +313,7 @@ def main():
     print(f"💰 Bônus total acumulado: {bonus_otimizado}")
     print(f"⏱️ Tempo de execução: {tempo_otimizado:.6f} ms")
     print("📦 Melhor sequência de entregas (A -> entrega -> A):")
+    print("Entrega: ", caminho_otimizado)
     for destino, bonus, tempo in caminho_otimizado:
         print(f" - {destino}: bônus {bonus}, entregue até {tempo} minutos")
 

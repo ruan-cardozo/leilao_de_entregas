@@ -190,4 +190,4 @@ Entregas:
 38,L,5  
 42,M,8  
 
-Exemplo 10
+Exemplo 10:
